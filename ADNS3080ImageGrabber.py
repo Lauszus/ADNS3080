@@ -1,3 +1,4 @@
+# Copyright DIY Drone: https://github.com/diydrones/ardupilot/tree/5ddbcc296dd6dd9ac9ed6316ac3134c736ae8a78/libraries/AP_OpticalFlow/examples/ADNS3080ImageGrabber
 # File: ADNS3080ImageGrabber.py
 
 import serial
