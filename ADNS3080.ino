@@ -86,9 +86,6 @@ void loop() {
 #endif
 }
 
-// TODO: Implement configuration: https://github.com/diydrones/ardupilot/blob/5ddbcc296dd6dd9ac9ed6316ac3134c736ae8a78/libraries/AP_OpticalFlow/AP_OpticalFlow_ADNS3080.cpp#L68-L98
-// Also implement "update_conversion_factors"
-
 void printPixelData(void) {
   bool isFirstPixel = true;
 
@@ -96,25 +93,28 @@ void printPixelData(void) {
   spiWrite(ADNS3080_FRAME_CAPTURE, 0x83);
 
   // Wait 3 frame periods + 10 nanoseconds for frame to be captured
-  delayMicroseconds(1510);  // min frame speed is 2000 frames/second so 1 frame = 500 nano seconds.  so 500 x 3 + 10 = 1510
+  delayMicroseconds(1510); // Minimum frame speed is 2000 frames/second so 1 frame = 500 nano seconds. So 500 x 3 + 10 = 1510
 
   // Display the pixel data
   for (uint8_t i = 0; i < ADNS3080_PIXELS_Y; i++) {
     for (uint8_t j = 0; j < ADNS3080_PIXELS_X; j++) {
       uint8_t regValue = spiRead(ADNS3080_FRAME_CAPTURE);
-      if (isFirstPixel && !(regValue & 0x40))
+      if (isFirstPixel && !(regValue & 0x40)) {
         Serial.println(F("Failed to find first pixel"));
+        goto reset;
+      }
       isFirstPixel = false;
-      uint8_t pixelValue = regValue << 2;
+      uint8_t pixelValue = regValue << 2; // Only lower 6 bits have data
       Serial.print(pixelValue);
       if (j != ADNS3080_PIXELS_X - 1)
         Serial.write(',');
     }
     Serial.println();
+    Serial.flush();
   }
 
-  // Hardware reset to restore sensor to normal operation
-  reset();
+reset:
+  reset(); // Hardware reset to restore sensor to normal operation
 }
 
 void updateSensor(void) {
