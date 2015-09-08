@@ -35,6 +35,7 @@ SPISettings spiSettings(2e6, MSBFIRST, SPI_MODE3); // 2 MHz, mode 3
 #define ADNS3080_SQUAL                 0x05
 #define ADNS3080_MOTION_CLEAR          0x12
 #define ADNS3080_FRAME_CAPTURE         0x13
+#define ADNS3080_MOTION_BURST          0x50
 
 // ADNS3080 hardware config
 #define ADNS3080_PIXELS_X              30
@@ -53,17 +54,17 @@ void setup() {
   while (!Serial); // Wait for serial port to open
 
   SPI.begin();
-  pinMode(SS, OUTPUT);
-  digitalWrite(SS, HIGH);
+
+  // Set SS and reset pin as output
+  pinMode(SS_PIN, OUTPUT);
   pinMode(RESET_PIN, OUTPUT);
   reset();
-  delay(10);
 
   uint8_t id = spiRead(ADNS3080_PRODUCT_ID);
   if (id == ADNS3080_PRODUCT_ID_VALUE)
-    Serial.println(F("ADNS-3080 found!"));
+    Serial.println(F("ADNS-3080 found"));
   else {
-    Serial.print(F("Could not find ADNS3080: "));
+    Serial.print(F("Could not find ADNS-3080: "));
     Serial.println(id, HEX);
     while (1);
   }
@@ -114,15 +115,17 @@ void printPixelData(void) {
 
 void updateSensor(void) {
   // Read sensor
-  uint8_t surfaceQuality = spiRead(ADNS3080_SQUAL);
-  uint8_t motion = spiRead(ADNS3080_MOTION);
+  uint8_t buf[4];
+  spiRead(ADNS3080_MOTION_BURST, buf, 4);
+  uint8_t motion = buf[0];
   //Serial.print(motion & 0x01); // Resolution
 
   if (motion & 0x10) // Check if we've had an overflow
-    Serial.println(F("OVERFLOW"));
+    Serial.println(F("ADNS-3080 overflow\n"));
   else if (motion & 0x80) {
-    int8_t dx = spiRead(ADNS3080_DELTA_X);
-    int8_t dy = spiRead(ADNS3080_DELTA_Y);
+    int8_t dx = buf[1];
+    int8_t dy = buf[2];
+    uint8_t surfaceQuality = buf[3];
 
     x += dx;
     y += dy;
