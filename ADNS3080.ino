@@ -81,7 +81,8 @@ void loop() {
   Serial.println(F("image data --------------"));
   printPixelData();
   Serial.println(F("-------------------------"));
-  delay(1000);
+  Serial.flush();
+  delay(1500);
 #endif
 }
 
@@ -108,7 +109,6 @@ void printPixelData(void) {
       Serial.print(pixelValue);
       if (j != ADNS3080_PIXELS_X - 1)
         Serial.write(',');
-      delayMicroseconds(50);
     }
     Serial.println();
   }
@@ -155,9 +155,10 @@ void updateSensor(void) {
 }
 
 void reset(void) {
-  digitalWrite(RESET_PIN, HIGH);
+  digitalWrite(RESET_PIN, HIGH); // Set high
   delayMicroseconds(10);
-  digitalWrite(RESET_PIN, LOW);
+  digitalWrite(RESET_PIN, LOW); // Set low
+  delayMicroseconds(500); // Wait for sensor to get ready
 }
 
 // Will cause the Delta_X, Delta_Y, and internal motion registers to be cleared
@@ -173,12 +174,13 @@ void spiWrite(uint8_t reg, uint8_t data) {
 void spiWrite(uint8_t reg, uint8_t *data, uint8_t length) {
   SPI.beginTransaction(spiSettings);
   digitalWrite(SS_PIN, LOW);
-  SPI.transfer(reg | 0x80);
-  delayMicroseconds(50);
-  SPI.transfer(data, length);
+
+  SPI.transfer(reg | 0x80); // Indicate write operation
+  delayMicroseconds(75); // Wait minimum 75 us in case writing to Motion or Motion_Burst registers
+  SPI.transfer(data, length); // Write data
+
   digitalWrite(SS_PIN, HIGH);
   SPI.endTransaction();
-  delayMicroseconds(50);
 }
 
 uint8_t spiRead(uint8_t reg) {
@@ -190,12 +192,13 @@ uint8_t spiRead(uint8_t reg) {
 void spiRead(uint8_t reg, uint8_t *data, uint8_t length) {
   SPI.beginTransaction(spiSettings);
   digitalWrite(SS_PIN, LOW);
-  SPI.transfer(reg);
-  delayMicroseconds(50);
-  memset(data, 0, length);
-  SPI.transfer(data, length);
+
+  SPI.transfer(reg); // Send register address
+  delayMicroseconds(75); // Wait minimum 75 us in case writing to Motion or Motion_Burst registers
+  memset(data, 0, length); // Make sure data buffer is 0
+  SPI.transfer(data, length); // Write data
+
   digitalWrite(SS_PIN, HIGH);
   SPI.endTransaction();
-  delayMicroseconds(50);
 }
 
