@@ -78,11 +78,10 @@ void loop() {
 #if 1
   updateSensor();
 #else
-  Serial.println(F("image data --------------"));
+  Serial.write("start\n");
   printPixelData();
-  Serial.println(F("-------------------------"));
   Serial.flush();
-  delay(1500);
+  delay(250);
 #endif
 }
 
@@ -105,11 +104,8 @@ void printPixelData(void) {
       }
       isFirstPixel = false;
       uint8_t pixelValue = regValue << 2; // Only lower 6 bits have data
-      Serial.print(pixelValue);
-      if (j != ADNS3080_PIXELS_X - 1)
-        Serial.write(',');
+      Serial.write(pixelValue);
     }
-    Serial.println();
     Serial.flush();
   }
 

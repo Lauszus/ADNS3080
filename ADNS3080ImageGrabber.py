@@ -1,181 +1,171 @@
+#!/usr/bin/env python
+#
 # Copyright DIY Drone: https://github.com/diydrones/ardupilot/tree/5ddbcc296dd6dd9ac9ed6316ac3134c736ae8a78/libraries/AP_OpticalFlow/examples/ADNS3080ImageGrabber
 # File: ADNS3080ImageGrabber.py
+# Modified by Kristian Sloth Lauszus
 
-import serial
-import string
-import math
-import time
-from Tkinter import *
+from serial import Serial, SerialException
+from Tkinter import Tk, Frame, StringVar, Button, Canvas, OptionMenu
 from threading import Timer
 
-comPort = '/dev/tty.usbmodem177331'  #default com port
-comPortBaud = 115200
+import serial.tools.list_ports
+
+
+def serial_ports():
+    devices = []
+    for port in list(serial.tools.list_ports.comports()):
+        if port.hwid != 'n/a':  # Check if it is a physical port
+            devices.append(port.device)
+    if devices:
+        print('Serial ports:')
+        for device in devices:
+            print('  ' + device)
+    else:
+        print('No serial ports found')
+    return devices
+
 
 class App:
     grid_size = 15
     num_pixels = 30
-    image_started = FALSE
-    image_current_row = 0;
-    ser = serial.Serial()
+    ser = None
+    t = None
     pixel_dictionary = {}
 
     def __init__(self, master):
-
-        # set main window's title
+        # Set main window's title
         master.title("ADNS3080ImageGrabber")
 
         frame = Frame(master)
-        frame.grid(row=0,column=0)
+        frame.grid(row=0, column=0)
 
         self.comPortStr = StringVar()
-        self.comPort = Entry(frame,textvariable=self.comPortStr)
-        self.comPort.grid(row=0,column=0)
-        self.comPort.delete(0, END)
-        self.comPort.insert(0,comPort)
+        ports = serial_ports()
+        if not ports:
+            ports = ['No serial ports found']
+        self.comPortStr.set(ports[0])  # Set first port as default
 
-        self.button = Button(frame, text="Open", fg="red", command=self.open_serial)
-        self.button.grid(row=0,column=1)
+        comports = apply(OptionMenu, (frame, self.comPortStr) + tuple(ports))
+        comports.grid(row=0, column=0)
 
-        self.entryStr = StringVar()
-        self.entry = Entry(frame,textvariable=self.entryStr)
-        self.entry.grid(row=0,column=2)
-        self.entry.delete(0, END)
-        self.entry.insert(0,"I")
+        self.baudrateStr = StringVar()
+        self.baudrateStr.set('115200')
 
-        self.send_button = Button(frame, text="Send", command=self.send_to_serial)
-        self.send_button.grid(row=0,column=3)
+        baudrates = apply(OptionMenu, (frame, self.baudrateStr) + tuple(Serial.BAUDRATES))
+        baudrates.grid(row=0, column=1)
+
+        button = Button(frame, text="Open", command=self.open)
+        button.grid(row=0, column=2)
+
+        button = Button(frame, text="Close", command=self.close)
+        button.grid(row=0, column=3)
 
         self.canvas = Canvas(master, width=self.grid_size*self.num_pixels, height=self.grid_size*self.num_pixels)
         self.canvas.grid(row=1)
 
-        ## start attempts to read from serial port
-        self.read_loop()
-
     def __del__(self):
-        self.stop_read_loop()
+        self.close()
 
-    def open_serial(self):
-        # close the serial port
-        if( self.ser.isOpen() ):
+    def close(self):
+        self.stop_read_loop()
+        self.close_serial()
+
+    def open(self):
+        # Close the serial port
+        self.close_serial()
+
+        # Open the serial port
+        try:
+            self.ser = Serial(port=self.comPortStr.get(), baudrate=self.baudrateStr.get(), timeout=.1)
+            print("Serial port '" + self.comPortStr.get() + "' opened at " + self.baudrateStr.get())
+            self.read_loop()  # Read from serial port
+        except SerialException:
+            print("Failed to open serial port '" + self.comPortStr.get() + "'")
+
+    def close_serial(self):
+        if self.ser and self.ser.isOpen():
             try:
                 self.ser.close()
-            except:
-                i=i  # do nothing
-        # open the serial port
-        try:
-            self.ser = serial.Serial(port=self.comPortStr.get(),baudrate=comPortBaud, timeout=1)
-            print("serial port '" + self.comPortStr.get() + "' opened!")
-        except:
-            print("failed to open serial port '" + self.comPortStr.get() + "'")
-
-    def send_to_serial(self):
-        if self.ser.isOpen():
-            self.ser.write(self.entryStr.get())
-            print "sent '" + self.entryStr.get() + "' to " + self.ser.portstr
-        else:
-            print "Serial port not open!"
+                print("Closed serial port")
+            except SerialException:
+                pass  # Do nothing
 
     def read_loop(self):
-        try:
-            self.t.cancel()
-        except:
-            aVar = 1  # do nothing
-        #print("reading")
-        if( self.ser.isOpen() ) :
-            self.read_from_serial();
+        if self.t:
+            self.stop_read_loop()
 
-        self.t = Timer(0.0,self.read_loop)
+        if self.ser.isOpen():
+            try:
+                self.read_from_serial()
+            except (IOError, TypeError):
+                pass
+
+        self.t = Timer(0.0, self.read_loop)
         self.t.start()
 
     def stop_read_loop(self):
         try:
             self.t.cancel()
-        except:
-            print("failed to cancel timer")
-            # do nothing
+        except AttributeError:
+            print("Failed to cancel timer")
 
     def read_from_serial(self):
-        if( self.ser.isOpen() ):
-            while( self.ser.inWaiting() > 0 ):
-
-                self.line_processed = FALSE
-                line = self.ser.readline()
-
-                # process the line read
-
-                if( line.find("-------------------------") == 0 ):
-                    self.line_processed = TRUE
-                    self.image_started = FALSE
-                    self.image_current_row = 0
-
-                if( self.image_started == TRUE ):
-                    if( self.image_current_row >= self.num_pixels ):
-                        self.image_started == FALSE
-                    else:
-                        words = string.split(line,",")
-                        if len(words) >= 30:
-                            self.line_processed = TRUE
-                            x = 0
-                            for v in words:
-                                try:
-                                    colour = int(v)
-                                except:
-                                    colour = 0;
-                                #self.display_pixel(x,self.image_current_row,colour)
-                                self.display_pixel(self.num_pixels-1-self.image_current_row,self.num_pixels-1-x,colour)
-                                x += 1
-                            self.image_current_row += 1
-                        else:
-                            print("line " + str(self.image_current_row) + "incomplete (" + str(len(words)) + " of " + str(self.num_pixels) + "), ignoring")
-                            #print("bad line: " + line);
-
-                if( line.find("image data") >= 0 ):
-                    self.line_processed = TRUE
-                    self.image_started = TRUE
-                    self.image_current_row = 0
-                    # clear canvas
-                    #self.canvas.delete(ALL) # remove all items
-
-                #display the line if we couldn't understand it
-                if( self.line_processed == FALSE ):
-                    print( line )
+        while self.ser and self.ser.isOpen() and self.ser.inWaiting() > 0:
+            # Process the line read
+            line = self.ser.readline()
+            if line.find("start") == 0:
+                # print('Started reading image')
+                pixels = self.ser.read(self.num_pixels * self.num_pixels)
+                if len(pixels) == self.num_pixels * self.num_pixels:
+                    for row in range(self.num_pixels):
+                        # print(row)
+                        col = 0
+                        for p in pixels[row * self.num_pixels:(row + 1) * self.num_pixels]:
+                            try:
+                                colour = ord(p)
+                            except TypeError:
+                                colour = 0
+                            # print('Colour', colour)
+                            self.display_pixel(self.num_pixels - 1 - row, self.num_pixels - 1 - col, colour)
+                            col += 1
+                    # print('Done reading image')
+                else:
+                    print(len(pixels))
+                    # print("Bad line: " + pixels)
+            else:
+                # Display the line if we couldn't understand it
+                print('Error while processing string:', line)
+                self.ser.flushInput()  # Flush the input, as this was likely caused by a timeout
 
     def display_default_image(self):
-        # display the grid
-        for x in range(0, self.num_pixels-1):
-            for y in range(0, self.num_pixels-1):
+        # Display the grid
+        for x in range(self.num_pixels):
+            for y in range(self.num_pixels):
                 colour = x * y / 3.53
-                self.display_pixel(x,y,colour)
+                self.display_pixel(x, y, colour)
 
     def display_pixel(self, x, y, colour):
-        if( x >= 0 and x < self.num_pixels and y >= 0 and y < self.num_pixels ) :
+        if 0 <= x < self.num_pixels and 0 <= y < self.num_pixels:
+            # Find the old pixel if it exists and delete it
+            if x+y*self.num_pixels in self.pixel_dictionary:
+                old_pixel = self.pixel_dictionary[x+y*self.num_pixels]
+                self.canvas.delete(old_pixel)
+                del old_pixel
 
-            #find the old pixel if it exists and delete it
-            if self.pixel_dictionary.has_key(x+y*self.num_pixels) :
-                self.old_pixel = self.pixel_dictionary[x+y*self.num_pixels]
-                self.canvas.delete(self.old_pixel)
-                del(self.old_pixel)
+            fill_colour = "#%02x%02x%02x" % (colour, colour, colour)
+            # Draw a new pixel and add to pixel_array
+            new_pixel = self.canvas.create_rectangle(x*self.grid_size, y*self.grid_size, (x+1)*self.grid_size,
+                                                     (y+1)*self.grid_size, fill=fill_colour)
+            self.pixel_dictionary[x+y*self.num_pixels] = new_pixel
 
-            fillColour = "#%02x%02x%02x" % (colour, colour, colour)
-            #draw a new pixel and add to pixel_array
-            self.new_pixel = self.canvas.create_rectangle(x*self.grid_size, y*self.grid_size, (x+1)*self.grid_size, (y+1)*self.grid_size, fill=fillColour)
-            self.pixel_dictionary[x+y*self.num_pixels] = self.new_pixel
-
-
-## main loop ##
 
 root = Tk()
-#root.withdraw()
-#serPort = SerialHandler(comPort,comPortBaud)
 
-# create main display
+# Create main display
 app = App(root)
 app.display_default_image()
 
-print("entering main loop!")
-
+print("Entering main loop")
 root.mainloop()
-
-app.stop_read_loop()
-
-print("exiting")
+app.close()
+print("Exiting")
