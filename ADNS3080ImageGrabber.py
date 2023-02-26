@@ -5,7 +5,7 @@
 # Modified by Kristian Sloth Lauszus
 
 from serial import Serial, SerialException
-from Tkinter import Tk, Frame, StringVar, Button, Canvas, OptionMenu
+from tkinter import Tk, Frame, StringVar, Button, Canvas, OptionMenu
 from threading import Timer
 
 import serial.tools.list_ports
@@ -45,13 +45,13 @@ class App:
             ports = ['No serial ports found']
         self.comPortStr.set(ports[0])  # Set first port as default
 
-        comports = apply(OptionMenu, (frame, self.comPortStr) + tuple(ports))
+        comports = OptionMenu(*(frame, self.comPortStr) + tuple(ports))
         comports.grid(row=0, column=0)
 
         self.baudrateStr = StringVar()
         self.baudrateStr.set('115200')
 
-        baudrates = apply(OptionMenu, (frame, self.baudrateStr) + tuple(Serial.BAUDRATES))
+        baudrates = OptionMenu(*(frame, self.baudrateStr) + tuple(Serial.BAUDRATES))
         baudrates.grid(row=0, column=1)
 
         button = Button(frame, text="Open", command=self.open)
@@ -152,7 +152,7 @@ class App:
                 self.canvas.delete(old_pixel)
                 del old_pixel
 
-            fill_colour = "#%02x%02x%02x" % (colour, colour, colour)
+            fill_colour = "#%02x%02x%02x" % (int(colour), int(colour), int(colour))
             # Draw a new pixel and add to pixel_array
             new_pixel = self.canvas.create_rectangle(x*self.grid_size, y*self.grid_size, (x+1)*self.grid_size,
                                                      (y+1)*self.grid_size, fill=fill_colour)
